@@ -1,0 +1,780 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
+<title>Optymalizator Cięcia Arkuszy</title>
+<style>
+:root {
+  --bg:#16181f;--surface:#1e2129;--surface2:#252830;--border:#2a2e3a;
+  --accent:#e8a23c;--blue:#4ea8de;--green:#5cc98e;--danger:#e05c5c;
+  --text:#d4d8e2;--muted:#6a7080;--radius:10px;
+  --font:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;
+  --nav-h:60px;--hdr-h:52px;--safe-bottom:env(safe-area-inset-bottom,0px);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-family:var(--font);-webkit-tap-highlight-color:transparent;}
+
+.hdr{position:fixed;top:0;left:0;right:0;z-index:100;height:var(--hdr-h);background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 16px;gap:10px;}
+.hdr-title{font-size:15px;font-weight:700;color:#fff;letter-spacing:-.01em;}
+.hdr-sub{font-size:11px;color:var(--muted);margin-left:auto;background:var(--border);padding:3px 9px;border-radius:99px;white-space:nowrap;}
+
+.nav{position:fixed;bottom:0;left:0;right:0;z-index:100;height:calc(var(--nav-h) + var(--safe-bottom));padding-bottom:var(--safe-bottom);background:var(--surface);border-top:1px solid var(--border);display:flex;}
+.nav-item{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;cursor:pointer;padding:6px 4px;border:none;background:none;color:var(--muted);font-family:var(--font);transition:color .15s;position:relative;}
+.nav-item.active{color:var(--accent);}
+.nav-item.active::after{content:'';position:absolute;top:0;left:20%;right:20%;height:2px;background:var(--accent);border-radius:0 0 2px 2px;}
+.nav-icon{font-size:20px;line-height:1;}
+.nav-label{font-size:10px;font-weight:600;letter-spacing:.03em;}
+
+.pages{position:fixed;top:var(--hdr-h);left:0;right:0;bottom:calc(var(--nav-h) + var(--safe-bottom));overflow:hidden;}
+.page{position:absolute;inset:0;overflow-y:auto;overflow-x:hidden;display:none;-webkit-overflow-scrolling:touch;}
+.page.active{display:block;}
+
+input[type=number],input[type=text],select{background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:10px 12px;border-radius:var(--radius);font-size:15px;font-family:var(--font);-webkit-appearance:none;appearance:none;width:100%;}
+input[type=number]:focus,input[type=text]:focus,select:focus{outline:2px solid var(--blue);border-color:var(--blue);}
+select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%236a7080' stroke-width='1.5' fill='none'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center;padding-right:36px;cursor:pointer;}
+
+.section{padding:16px;}
+.section+.section{padding-top:0;}
+.sec-label{font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:10px;}
+.divider{height:1px;background:var(--border);margin:0 16px;}
+.field{display:flex;flex-direction:column;gap:6px;}
+.field-label{font-size:11px;color:var(--muted);font-weight:600;letter-spacing:.05em;}
+.settings-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.custom-size-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+
+/* PARTS */
+.part-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;margin:0 16px 10px;padding:14px;}
+.part-card.hd{border-color:rgba(232,162,60,.35);}
+.pc-header{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:10px;}
+.pc-name{font-size:14px;font-weight:700;color:var(--text);line-height:1.2;}
+.pc-name.hd{color:var(--accent);}
+.hd-badge{display:inline-block;font-size:9px;font-weight:700;background:rgba(232,162,60,.15);color:var(--accent);padding:2px 6px;border-radius:4px;margin-left:6px;vertical-align:middle;}
+.pc-sap{font-size:11px;color:var(--blue);font-family:monospace;margin-top:3px;}
+.pc-dims{font-size:12px;color:var(--muted);margin-top:2px;}
+.rot-btn{background:var(--surface2);border:1px solid var(--border);color:var(--muted);cursor:pointer;font-size:16px;border-radius:8px;width:38px;height:38px;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .15s;}
+.rot-btn.on{color:var(--blue);border-color:var(--blue);background:rgba(78,168,222,.1);}
+.pc-fields{display:grid;grid-template-columns:1fr;gap:8px;}
+.pc-field{display:flex;flex-direction:column;gap:5px;}
+.pc-field-label{font-size:10px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.08em;}
+.stepper{display:flex;align-items:center;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;}
+.stepper-btn{width:48px;height:46px;border:none;background:none;color:var(--text);font-size:22px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:background .12s;-webkit-tap-highlight-color:transparent;}
+.stepper-btn:active{background:var(--border);}
+.stepper-val{flex:1;text-align:center;font-size:17px;font-weight:700;color:var(--text);}
+
+.run-fab{position:sticky;bottom:0;left:0;right:0;padding:12px 16px calc(12px + var(--safe-bottom));background:linear-gradient(to top,var(--bg) 70%,transparent);z-index:10;}
+.run-btn{width:100%;padding:16px;border:none;border-radius:14px;background:var(--accent);color:#1a1200;font-weight:800;font-size:15px;letter-spacing:.04em;cursor:pointer;transition:opacity .15s;box-shadow:0 4px 20px rgba(232,162,60,.35);}
+.run-btn:active{opacity:.85;}
+
+/* RESULTS */
+.stats-scroll{display:flex;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;border-bottom:1px solid var(--border);background:var(--surface);}
+.stats-scroll::-webkit-scrollbar{display:none;}
+.stat-cell{flex-shrink:0;padding:12px 18px;border-right:1px solid var(--border);display:flex;flex-direction:column;gap:2px;}
+.stat-val{font-size:20px;font-weight:800;color:#fff;}
+.stat-val.good{color:var(--green);}
+.stat-val.warn{color:var(--accent);}
+.stat-val.bad{color:var(--danger);}
+.stat-label{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.1em;white-space:nowrap;}
+.sheet-pill-row{display:flex;gap:8px;padding:12px 16px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;}
+.sheet-pill-row::-webkit-scrollbar{display:none;}
+.sh-pill{flex-shrink:0;padding:7px 14px;border-radius:99px;font-size:12px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);color:var(--muted);transition:all .15s;white-space:nowrap;}
+.sh-pill.active{background:var(--accent);color:#1a1200;font-weight:700;border-color:var(--accent);}
+.canvas-wrap{padding:12px 16px 20px;display:flex;justify-content:center;touch-action:pinch-zoom;}
+canvas{display:block;border:1px solid var(--border);border-radius:10px;box-shadow:0 4px 24px rgba(0,0,0,.5);max-width:100%;}
+.legend-section{padding:0 16px 80px;}
+.legend-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;}
+.leg-item{display:flex;align-items:center;gap:7px;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:7px 10px;}
+.leg-sw{width:12px;height:12px;border-radius:3px;flex-shrink:0;}
+.leg-text{font-size:11px;color:var(--text);line-height:1.3;}
+.leg-sap{font-size:10px;color:var(--blue);font-family:monospace;}
+.alert{margin:0 16px 10px;padding:12px 14px;background:rgba(224,92,92,.1);border:1px solid rgba(224,92,92,.3);border-radius:10px;font-size:13px;color:var(--danger);line-height:1.5;}
+.empty-page{display:flex;flex-direction:column;align-items:center;justify-content:center;height:60%;gap:12px;color:var(--muted);padding:32px;text-align:center;}
+.empty-page p{font-size:14px;line-height:1.6;}
+
+/* MB51 */
+.mb51-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;margin:0 16px 10px;padding:14px;}
+.mb51-card.hd{border-color:rgba(232,162,60,.3);}
+.mb51-top-row{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:10px;}
+.mb51-name{font-size:13px;font-weight:700;color:var(--text);}
+.mb51-name.hd{color:var(--accent);}
+.mb51-sap{font-size:11px;color:var(--blue);font-family:monospace;margin-top:2px;}
+.mb51-dim{font-size:11px;color:var(--muted);margin-top:1px;}
+.mb51-calc-row{display:flex;align-items:center;justify-content:space-between;margin-top:10px;padding-top:10px;border-top:1px solid var(--border);}
+.mb51-calc-label{font-size:11px;color:var(--muted);}
+.mb51-calc-val{font-size:16px;font-weight:800;color:var(--green);}
+.mb51-calc-val.zero{color:var(--muted);}
+.apply-btn{width:calc(100% - 32px);margin:4px 16px 16px;padding:15px;border:none;border-radius:14px;background:var(--blue);color:#071020;font-weight:800;font-size:15px;cursor:pointer;transition:opacity .15s;letter-spacing:.04em;}
+.apply-btn:active{opacity:.85;}
+
+/* SHEET SIZE */
+.sort-bar{display:flex;gap:6px;padding:10px 16px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;border-bottom:1px solid var(--border);}
+.sort-bar::-webkit-scrollbar{display:none;}
+.sort-chip{flex-shrink:0;padding:6px 13px;border-radius:99px;font-size:11px;font-weight:600;cursor:pointer;background:var(--surface2);border:1px solid var(--border);color:var(--muted);transition:all .15s;white-space:nowrap;}
+.sort-chip.active{background:var(--blue);color:#071020;border-color:var(--blue);}
+.size-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;margin:0 16px 10px;padding:14px 16px;cursor:pointer;transition:border-color .15s;display:flex;align-items:center;gap:12px;position:relative;}
+.size-card:active{opacity:.8;}
+.size-card.sel{border-color:var(--accent);background:rgba(232,162,60,.05);}
+.size-card.best{border-color:var(--green);}
+.size-card.best.sel{border-color:var(--green);background:rgba(92,201,142,.05);}
+.sc-rank{font-size:13px;font-weight:800;color:var(--muted);width:20px;text-align:center;flex-shrink:0;}
+.sc-left{flex:1;min-width:0;}
+.sc-name{font-size:14px;font-weight:700;color:var(--text);}
+.sc-dim{font-size:12px;color:var(--muted);margin-top:2px;}
+.sc-right{text-align:right;flex-shrink:0;}
+.sc-util{font-size:17px;font-weight:800;}
+.sc-sub{font-size:11px;color:var(--muted);margin-top:2px;}
+.sc-badge{position:absolute;top:-7px;right:12px;font-size:9px;font-weight:800;padding:2px 8px;border-radius:99px;}
+.badge-best{background:rgba(92,201,142,.2);color:var(--green);border:1px solid rgba(92,201,142,.3);}
+.badge-sel{background:rgba(232,162,60,.2);color:var(--accent);border:1px solid rgba(232,162,60,.3);}
+.find-btn{width:calc(100% - 32px);margin:0 16px 14px;padding:15px;border:none;border-radius:14px;background:var(--green);color:#071a0f;font-weight:800;font-size:15px;cursor:pointer;transition:opacity .15s;letter-spacing:.04em;}
+.find-btn:active{opacity:.85;}
+
+::-webkit-scrollbar{width:4px;height:4px;}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px;}
+</style>
+</head>
+<body>
+
+<header class="hdr">
+  <span class="hdr-title">⬛ Optymalizator Cięcia</span>
+  <span class="hdr-sub" id="headerSize">1130 × 1100 mm</span>
+</header>
+
+<div class="pages">
+
+  <!-- ══ CZĘŚCI ══ -->
+  <div class="page active" id="page-parts">
+    <div class="section">
+      <div class="sec-label">Ustawienia cięcia</div>
+      <div class="settings-row">
+        <div class="field">
+          <span class="field-label">Szerokość arkusza (mm)</span>
+          <input type="number" id="masterW" value="1130" onchange="updateHeaderSize()">
+        </div>
+        <div class="field">
+          <span class="field-label">Szczelina / piła (mm)</span>
+          <input type="number" id="kerf" value="2" min="0" step="0.5">
+        </div>
+      </div>
+    </div>
+    <div class="divider"></div>
+    <div class="section" style="padding-bottom:6px">
+      <div class="sec-label">Części — ustaw ilość do wycięcia</div>
+    </div>
+    <div id="partsList"></div>
+    <div id="alertBox" style="padding:0 16px 0"></div>
+    <div class="run-fab">
+      <button class="run-btn" onclick="runOptimizer()">▶  Optymalizuj układ cięcia</button>
+    </div>
+  </div>
+
+  <!-- ══ WYNIKI ══ -->
+  <div class="page" id="page-results">
+    <div class="stats-scroll">
+      <div class="stat-cell"><span class="stat-val" id="statSheets">—</span><span class="stat-label">Arkusze</span></div>
+      <div class="stat-cell"><span class="stat-val" id="statUtil">—</span><span class="stat-label">Śr. wykorzystanie</span></div>
+      <div class="stat-cell"><span class="stat-val" id="statWaste">—</span><span class="stat-label">Śr. odpad</span></div>
+      <div class="stat-cell"><span class="stat-val" id="statFit">—</span><span class="stat-label">Części rozmieszczone</span></div>
+      <div class="stat-cell"><span class="stat-val" id="statSize" style="font-size:14px">—</span><span class="stat-label">Format mm</span></div>
+    </div>
+    <div class="sheet-pill-row" id="sheetPills"></div>
+    <div id="alertBoxR"></div>
+    <div class="canvas-wrap" id="canvasArea">
+      <div class="empty-page"><p>Ustaw ilości w zakładce Części,<br>następnie kliknij Optymalizuj.</p></div>
+    </div>
+    <div class="legend-section">
+      <div class="sec-label" style="margin-bottom:8px">Legenda</div>
+      <div class="legend-grid" id="legend"></div>
+    </div>
+  </div>
+
+  <!-- ══ MB51 ══ -->
+  <div class="page" id="page-mb51">
+    <div class="section">
+      <div class="sec-label">MB51 — Zużycie materiału</div>
+      <div class="field" style="margin-bottom:8px">
+        <span class="field-label">Typ okresu</span>
+        <select id="periodType" onchange="recalcQty()">
+          <option value="month">na Miesiąc</option>
+          <option value="day">na Dzień</option>
+          <option value="week">na Tydzień</option>
+        </select>
+      </div>
+      <div class="field">
+        <span class="field-label">Liczba okresów do pokrycia</span>
+        <input type="number" id="periodCount" value="1" min="1" max="60" onchange="recalcQty()">
+      </div>
+      <div style="font-size:12px;color:var(--muted);margin-top:8px;line-height:1.6">
+        Wpisz liczby z MB51. Ilość do wycięcia zostanie wyliczona automatycznie.
+      </div>
+    </div>
+    <div class="divider"></div>
+    <div class="section" style="padding-bottom:6px">
+      <div class="sec-label">Zapotrzebowanie z MB51</div>
+    </div>
+    <div id="mb51Cards"></div>
+    <button class="apply-btn" onclick="applyMb51()">↑ Zastosuj ilości do Części</button>
+  </div>
+
+  <!-- ══ FORMAT ARKUSZA ══ -->
+  <div class="page" id="page-sheet">
+    <div class="section">
+      <div class="sec-label">Własny format arkusza (mm)</div>
+      <div class="custom-size-grid">
+        <div class="field">
+          <span class="field-label">Szerokość</span>
+          <input type="number" id="masterW2" value="1130" onchange="syncMasterW()">
+        </div>
+        <div class="field">
+          <span class="field-label">Wysokość</span>
+          <input type="number" id="masterH" value="1100" onchange="updateHeaderSize()">
+        </div>
+      </div>
+    </div>
+    <button class="find-btn" onclick="findBestSheet()">🔍 Znajdź najlepszy format arkusza</button>
+    <div id="sortBarWrap" style="display:none">
+      <div class="sort-bar" id="sortBar">
+        <button class="sort-chip active" onclick="setSortSheet('util',this)">Wykorzystanie ↓</button>
+        <button class="sort-chip" onclick="setSortSheet('waste',this)">Odpad ↑</button>
+        <button class="sort-chip" onclick="setSortSheet('sheets',this)">Liczba arkuszy ↑</button>
+        <button class="sort-chip" onclick="setSortSheet('area',this)">Powierzchnia ↑</button>
+        <button class="sort-chip" onclick="setSortSheet('name',this)">Nazwa A–Z</button>
+      </div>
+    </div>
+    <div id="sizeList">
+      <div class="empty-page" style="height:auto;padding:16px 32px">
+        <p style="font-size:13px">Kliknij „Znajdź najlepszy format"<br>aby porównać standardowe rozmiary.</p>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<nav class="nav">
+  <button class="nav-item active" id="nav-parts" onclick="showPage('parts')">
+    <span class="nav-icon">⚙️</span><span class="nav-label">Części</span>
+  </button>
+  <button class="nav-item" id="nav-results" onclick="showPage('results')">
+    <span class="nav-icon">📐</span><span class="nav-label">Układ</span>
+  </button>
+  <button class="nav-item" id="nav-mb51" onclick="showPage('mb51')">
+    <span class="nav-icon">📊</span><span class="nav-label">MB51</span>
+  </button>
+  <button class="nav-item" id="nav-sheet" onclick="showPage('sheet')">
+    <span class="nav-icon">📋</span><span class="nav-label">Format</span>
+  </button>
+</nav>
+
+<script>
+// ═══════════════════════════════════════════════
+// DANE
+// ═══════════════════════════════════════════════
+const HIGH_DEMAND = new Set(['T2000_150X900','T2000_275X520','T2000_290X355','T2000_290X615','T2000_295X480']);
+const PALETTE = ['#4ea8de','#e8a23c','#5cc98e','#c97ae8','#e85c8a','#78d4b6','#e8c43c','#9a7ae8','#e87c3c','#5cade8','#b8e85c','#e85c5c','#3cdce8','#e8a87a','#a8e83c','#d88ce8'];
+
+// SAP indeksy – dane stałe
+// Uwaga: T2000_250X650 ma dwa indeksy SAP (11933238 i 11939181)
+const SAP_MAP = {
+  'T2000_290X615': 'xxxxxxxx',
+  'T2000_35X510':  'xxxxxxxx',
+  'T2000_275X520': 'xxxxxxxx',
+  'T2000_275X390': 'xxxxxxxx',
+  'T2000_30X770':  'xxxxxxxx',
+  'T2000_30X700':  'xxxxxxxx',
+  'T2000_50X500':  'xxxxxxxx',
+  'T2000_290X355': 'xxxxxxxx',
+  'T2000_30X490':  'xxxxxxxx',
+  'T2000_35X640':  'xxxxxxxx',
+  'T2000_295X480': 'xxxxxxxx',
+  'T2000_50X635':  'xxxxxxxx',
+  'T2000_50X770':  'xxxxxxxx',
+  'T2000_30X570':  'xxxxxxxx',
+  'T2000_250X650': 'xxxxxxxx / xxxxxxxx',
+  'T2000_150X900': 'xxxxxxxx',
+};
+
+const STANDARD_SHEETS = [
+  {name:'Własny (bieżący)', custom:true},
+  {name:'1220 × 2440', w:1220, h:2440},
+  {name:'1130 × 1100', w:1130, h:1100},
+  {name:'1250 × 2500', w:1250, h:2500},
+  {name:'1000 × 2000', w:1000, h:2000},
+  {name:'1200 × 2400', w:1200, h:2400},
+  {name:'1525 × 3050', w:1525, h:3050},
+  {name:'900 × 1800',  w:900,  h:1800},
+  {name:'600 × 1200',  w:600,  h:1200},
+  {name:'1000 × 1000', w:1000, h:1000},
+  {name:'1100 × 2200', w:1100, h:2200},
+  {name:'1250 × 1250', w:1250, h:1250},
+];
+
+const parts = [
+  {id:'T2000_50X770',  w:50,  h:770},
+  {id:'T2000_50X635',  w:50,  h:635},
+  {id:'T2000_50X500',  w:50,  h:500},
+  {id:'T2000_35X640',  w:35,  h:640},
+  {id:'T2000_35X510',  w:35,  h:510},
+  {id:'T2000_30X770',  w:30,  h:770},
+  {id:'T2000_30X700',  w:30,  h:700},
+  {id:'T2000_30X570',  w:30,  h:570},
+  {id:'T2000_30X490',  w:30,  h:490},
+  {id:'T2000_295X480', w:295, h:480},
+  {id:'T2000_290X615', w:290, h:615},
+  {id:'T2000_290X355', w:290, h:355},
+  {id:'T2000_275X520', w:275, h:520},
+  {id:'T2000_275X390', w:275, h:390},
+  {id:'T2000_250X650', w:250, h:650},
+  {id:'T2000_150X900', w:150, h:900},
+].map((p,i) => ({
+  ...p,
+  color: PALETTE[i % PALETTE.length],
+  qty: HIGH_DEMAND.has(p.id) ? 0 : 0,
+  allowRotate: true,
+  highDemand: HIGH_DEMAND.has(p.id),
+  sapIndex: SAP_MAP[p.id] || '',
+  mb51Demand: 0,
+}));
+
+// ═══════════════════════════════════════════════
+// NAWIGACJA
+// ═══════════════════════════════════════════════
+function showPage(name) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('page-' + name).classList.add('active');
+  document.getElementById('nav-' + name).classList.add('active');
+}
+
+// ═══════════════════════════════════════════════
+// LISTA CZĘŚCI
+// ═══════════════════════════════════════════════
+function buildPartsList() {
+  const el = document.getElementById('partsList');
+  el.innerHTML = '';
+  const sorted = [...parts].sort((a,b) => b.highDemand - a.highDemand || b.w*b.h - a.w*a.h);
+  sorted.forEach(p => {
+    const card = document.createElement('div');
+    card.className = 'part-card' + (p.highDemand ? ' hd' : '');
+    card.innerHTML = `
+      <div class="pc-header">
+        <div style="min-width:0">
+          <div class="pc-name${p.highDemand?' hd':''}">
+            ${p.id.replace('T2000_','')}${p.highDemand ? '<span class="hd-badge">★ HD</span>' : ''}
+          </div>
+          ${p.sapIndex ? `<div class="pc-sap">SAP: ${p.sapIndex}</div>` : ''}
+          <div class="pc-dims">${p.w} × ${p.h} mm &nbsp;·&nbsp; ${(p.w*p.h/100).toFixed(0)} cm²</div>
+        </div>
+        <button class="rot-btn${p.allowRotate?' on':''}" title="Zezwól na obrót 90°" onclick="toggleRotate('${p.id}',this)">⟳</button>
+      </div>
+      <div class="pc-fields">
+        <div class="pc-field">
+          <span class="pc-field-label">Ilość do wycięcia</span>
+          <div class="stepper">
+            <button class="stepper-btn" onclick="stepQty('${p.id}',-1)">−</button>
+            <span class="stepper-val" id="qty-${p.id}">${p.qty}</span>
+            <button class="stepper-btn" onclick="stepQty('${p.id}',1)">+</button>
+          </div>
+        </div>
+      </div>`;
+    el.appendChild(card);
+  });
+}
+
+function stepQty(id, delta) {
+  const p = parts.find(p => p.id === id);
+  p.qty = Math.max(0, Math.min(99, p.qty + delta));
+  const el = document.getElementById('qty-' + id);
+  if (el) el.textContent = p.qty;
+}
+
+function toggleRotate(id, btn) {
+  const p = parts.find(p => p.id === id);
+  p.allowRotate = !p.allowRotate;
+  btn.classList.toggle('on', p.allowRotate);
+}
+
+function syncMasterW() {
+  document.getElementById('masterW').value = document.getElementById('masterW2').value;
+  updateHeaderSize();
+}
+
+function updateHeaderSize() {
+  const W = +document.getElementById('masterW').value || 1130;
+  const H = +document.getElementById('masterH').value || 1100;
+  if (document.getElementById('masterW2')) document.getElementById('masterW2').value = W;
+  document.getElementById('headerSize').textContent = `${W} × ${H} mm`;
+  document.getElementById('statSize').textContent = `${W}×${H}`;
+}
+
+// ═══════════════════════════════════════════════
+// MB51
+// ═══════════════════════════════════════════════
+function buildMb51() {
+  const el = document.getElementById('mb51Cards');
+  el.innerHTML = '';
+  const sorted = [...parts].sort((a,b) => b.highDemand - a.highDemand || b.w*b.h - a.w*a.h);
+  sorted.forEach(p => {
+    const card = document.createElement('div');
+    card.className = 'mb51-card' + (p.highDemand ? ' hd' : '');
+    card.innerHTML = `
+      <div class="mb51-top-row">
+        <div style="flex:1;min-width:0">
+          <div class="mb51-name${p.highDemand?' hd':''}">
+            ${p.id.replace('T2000_','')}${p.highDemand ? '<span class="hd-badge">★</span>' : ''}
+          </div>
+          ${p.sapIndex ? `<div class="mb51-sap">SAP: ${p.sapIndex}</div>` : ''}
+          <div class="mb51-dim">${p.w} × ${p.h} mm</div>
+        </div>
+        <input type="number" min="0" placeholder="0" value="${p.mb51Demand || ''}"
+          style="width:80px;text-align:center;padding:8px;font-size:16px;flex-shrink:0"
+          onchange="parts.find(x=>x.id==='${p.id}').mb51Demand=+this.value; recalcQty()">
+      </div>
+      <div class="mb51-calc-row">
+        <span class="mb51-calc-label">→ Ilość do wycięcia</span>
+        <span class="mb51-calc-val zero" id="mb51calc-${p.id}">0</span>
+      </div>`;
+    el.appendChild(card);
+  });
+  recalcQty();
+}
+
+function recalcQty() {
+  const type = document.getElementById('periodType').value;
+  const count = Math.max(1, +document.getElementById('periodCount').value);
+  const mult = {month: count, day: count, week: count * 7}[type];
+  parts.forEach(p => {
+    const qty = Math.ceil((p.mb51Demand || 0) * mult);
+    const el = document.getElementById('mb51calc-' + p.id);
+    if (!el) return;
+    el.textContent = qty || '0';
+    el.className = 'mb51-calc-val' + (qty === 0 ? ' zero' : '');
+    el._qty = qty;
+  });
+}
+
+function applyMb51() {
+  parts.forEach(p => {
+    const el = document.getElementById('mb51calc-' + p.id);
+    if (!el) return;
+    const qty = el._qty || 0;
+    if (qty > 0) {
+      p.qty = qty;
+      const qEl = document.getElementById('qty-' + p.id);
+      if (qEl) qEl.textContent = qty;
+    }
+  });
+  showPage('parts');
+}
+
+// ═══════════════════════════════════════════════
+// ALGORYTM PAKOWANIA (MaxRects BAF)
+// ═══════════════════════════════════════════════
+class MaxRects {
+  constructor(W, H) { this.W=W; this.H=H; this.free=[{x:0,y:0,w:W,h:H}]; this.placed=[]; }
+  insert(w, h, ar, meta) {
+        let best = null, bs = Infinity, br = false;
+        for (const r of this.free) {
+          if (w <= r.w && h <= r.h) {
+            const s = Math.min(r.w - w, r.h - h);        // was: r.w * r.h - w * h
+            if (s < bs) { bs = s; best = r; br = false; }
+          }
+          if (ar && h <= r.w && w <= r.h) {
+            const s = Math.min(r.w - h, r.h - w);         // was: r.w * r.h - w * h
+            if (s < bs) { bs = s; best = r; br = true; }
+          }
+        }
+        if (!best) return false;
+        const pw = br ? h : w, ph = br ? w : h;
+        this.placed.push({ x: best.x, y: best.y, w: pw, h: ph, rotated: br, ...meta });
+        this._split({ x: best.x, y: best.y, w: pw, h: ph }); this._prune(); return true;
+      }
+  _split(p) {
+    const nf=[];
+    for (const r of this.free) {
+      if (!this._ov(p,r)){nf.push(r);continue;}
+      if(p.x<r.x+r.w&&p.x+p.w>r.x){
+        if(p.y>r.y) nf.push({x:r.x,y:r.y,w:r.w,h:p.y-r.y});
+        if(p.y+p.h<r.y+r.h) nf.push({x:r.x,y:p.y+p.h,w:r.w,h:r.y+r.h-p.y-p.h});
+      }
+      if(p.y<r.y+r.h&&p.y+p.h>r.y){
+        if(p.x>r.x) nf.push({x:r.x,y:r.y,w:p.x-r.x,h:r.h});
+        if(p.x+p.w<r.x+r.w) nf.push({x:p.x+p.w,y:r.y,w:r.x+r.w-p.x-p.w,h:r.h});
+      }
+    }
+    this.free=nf;
+  }
+  _prune() {
+    const k=[];
+    for(let i=0;i<this.free.length;i++){
+      let d=false;
+      for(let j=0;j<this.free.length;j++){
+        if(i===j) continue;
+        const a=this.free[i], b=this.free[j];
+        if(b.x<=a.x&&b.y<=a.y&&b.x+b.w>=a.x+a.w&&b.y+b.h>=a.y+a.h){d=true;break;}
+      }
+      if(!d) k.push(this.free[i]);
+    }
+    this.free=k;
+  }
+  _ov(a,b){return!(a.x+a.w<=b.x||b.x+b.w<=a.x||a.y+a.h<=b.y||b.y+b.h<=a.y);}
+  utilization(){return this.placed.reduce((s,r)=>s+r.w*r.h,0)/(this.W*this.H);}
+}
+
+function packForSize(W, H, kerf) {
+  let jobs=[];
+  for (const p of parts) for (let i=0;i<p.qty;i++) jobs.push({...p,pw:p.w+kerf,ph:p.h+kerf});
+  jobs.sort((a,b)=>b.highDemand-a.highDemand||b.pw*b.ph-a.pw*a.ph);
+  const sheetList=[], unplaced=[];
+  while (jobs.length > 0) {
+    const pk=new MaxRects(W,H); const rem=[];
+    for (const j of jobs) if(!pk.insert(j.pw,j.ph,j.allowRotate,{id:j.id,color:j.color,origW:j.w,origH:j.h})) rem.push(j);
+    if (pk.placed.length===0){unplaced.push(...jobs);break;}
+    sheetList.push(pk); jobs=rem;
+  }
+  const avgUtil=sheetList.length?sheetList.reduce((s,sh)=>s+sh.utilization(),0)/sheetList.length:0;
+  return {sheetList,avgUtil,unplaced,W,H};
+}
+
+// ═══════════════════════════════════════════════
+// OPTYMALIZATOR
+// ═══════════════════════════════════════════════
+let sheets=[], currentSheet=0, lastW=1130, lastH=1100, lastKerf=2;
+
+function runOptimizer() {
+  lastW = +document.getElementById('masterW').value || 1130;
+  lastH = +document.getElementById('masterH').value || 1100;
+  lastKerf = +document.getElementById('kerf').value;
+  const res = packForSize(lastW, lastH, lastKerf);
+  sheets = res.sheetList;
+
+  const warn = res.unplaced.length
+    ? `⚠ ${res.unplaced.length} el. za dużych dla arkusza: ${[...new Set(res.unplaced.map(j=>j.id.replace('T2000_','')))].join(', ')}`
+    : '';
+  document.getElementById('alertBox').innerHTML = warn ? `<div class="alert">${warn}</div>` : '';
+  document.getElementById('alertBoxR').innerHTML = warn ? `<div class="alert">${warn}</div>` : '';
+
+  currentSheet = 0;
+  renderResults();
+  showPage('results');
+}
+
+// ═══════════════════════════════════════════════
+// WYNIKI
+// ═══════════════════════════════════════════════
+function renderResults() {
+  const totalParts = parts.reduce((s,p)=>s+p.qty,0);
+  const placed = sheets.reduce((s,sh)=>s+sh.placed.length,0);
+  const avgUtil = sheets.length ? sheets.reduce((s,sh)=>s+sh.utilization(),0)/sheets.length*100 : 0;
+
+  document.getElementById('statSheets').textContent = sheets.length || '—';
+  const uEl = document.getElementById('statUtil');
+  uEl.textContent = sheets.length ? avgUtil.toFixed(1)+'%' : '—';
+  uEl.className = 'stat-val '+(avgUtil>=75?'good':avgUtil>=55?'warn':'bad');
+  document.getElementById('statWaste').textContent = sheets.length ? (100-avgUtil).toFixed(1)+'%' : '—';
+  document.getElementById('statFit').textContent = sheets.length ? `${placed}/${totalParts}` : '—';
+  document.getElementById('statSize').textContent = `${lastW}×${lastH}`;
+
+  const pillsEl = document.getElementById('sheetPills');
+  pillsEl.innerHTML = '';
+  sheets.forEach((_,i) => {
+    const t = document.createElement('button');
+    t.className = 'sh-pill'+(i===currentSheet?' active':'');
+    t.textContent = `Arkusz ${i+1} · ${(sheets[i].utilization()*100).toFixed(0)}%`;
+    t.onclick = () => { currentSheet=i; renderSheet(); updatePills(); };
+    pillsEl.appendChild(t);
+  });
+
+  const legEl = document.getElementById('legend');
+  legEl.innerHTML = '';
+  const seen = new Set();
+  for (const sh of sheets) for (const r of sh.placed) {
+    if (!seen.has(r.id)) {
+      seen.add(r.id);
+      const p = parts.find(p=>p.id===r.id);
+      const item = document.createElement('div');
+      item.className = 'leg-item';
+      item.innerHTML = `<div class="leg-sw" style="background:${p.color}"></div>
+        <div class="leg-text">${r.id.replace('T2000_','')} ${p.w}×${p.h}${p.sapIndex?`<div class="leg-sap">${p.sapIndex}</div>`:''}</div>`;
+      legEl.appendChild(item);
+    }
+  }
+  renderSheet();
+}
+
+function updatePills() {
+  document.querySelectorAll('.sh-pill').forEach((t,i)=>t.classList.toggle('active',i===currentSheet));
+}
+
+function renderSheet() {
+  const W=lastW, H=lastH, kerf=lastKerf;
+  const area = document.getElementById('canvasArea');
+  area.innerHTML = '';
+  if (!sheets.length) { area.innerHTML='<div class="empty-page"><p>Brak wyników.</p></div>'; return; }
+
+  const packer = sheets[currentSheet];
+  const vw = area.clientWidth - 24;
+  const scale = vw / W;
+  const cw = Math.round(W*scale), ch = Math.round(H*scale);
+
+  const canvas = document.createElement('canvas');
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = cw*dpr; canvas.height = ch*dpr;
+  canvas.style.width = cw+'px'; canvas.style.height = ch+'px';
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+
+  ctx.fillStyle='#f9f5ec'; ctx.fillRect(0,0,cw,ch);
+  ctx.strokeStyle='#e5e0d5'; ctx.lineWidth=0.5;
+  for(let x=100;x<W;x+=100){ctx.beginPath();ctx.moveTo(x*scale,0);ctx.lineTo(x*scale,ch);ctx.stroke();}
+  for(let y=100;y<H;y+=100){ctx.beginPath();ctx.moveTo(0,y*scale);ctx.lineTo(cw,y*scale);ctx.stroke();}
+
+  for (const r of packer.placed) {
+    const rx=r.x*scale, ry=r.y*scale, rw=r.w*scale, rh=r.h*scale;
+    ctx.fillStyle=hexAlpha(r.color,.70); ctx.fillRect(rx,ry,rw,rh);
+    ctx.strokeStyle=r.color; ctx.lineWidth=1.5;
+    ctx.strokeRect(rx+.75,ry+.75,rw-1.5,rh-1.5);
+    if(kerf>0&&rw>8&&rh>8){
+      ctx.strokeStyle='rgba(0,0,0,.09)'; ctx.lineWidth=0.5;
+      ctx.setLineDash([2,2]);
+      ctx.strokeRect(rx+rw-kerf*scale,ry,kerf*scale,rh);
+      ctx.strokeRect(rx,ry+rh-kerf*scale,rw,kerf*scale);
+      ctx.setLineDash([]);
+    }
+    if(rw>16&&rh>12){
+      const p = parts.find(x=>x.id===r.id);
+      const fs = Math.max(6,Math.min(11,rw/8,rh/4));
+      ctx.save();
+      ctx.beginPath(); ctx.rect(rx+2,ry+2,rw-4,rh-4); ctx.clip();
+      ctx.textAlign='center'; ctx.textBaseline='middle';
+      const lines=[];
+      if(p.sapIndex&&rh>42) lines.push({t:p.sapIndex,c:'#1a3a5c',w:'700'});
+      lines.push({t:r.id.replace('T2000_',''),c:'#1a1a1a',w:'600'});
+      if(rh>28) lines.push({t:`${r.origW}×${r.origH}`+(r.rotated?' ↺':''),c:'rgba(0,0,0,.45)',w:'400'});
+      const th = lines.length*fs*1.35;
+      let cy = ry+rh/2-th/2+fs*.65;
+      for (const l of lines) {
+        ctx.font=`${l.w} ${fs}px -apple-system,sans-serif`;
+        ctx.fillStyle=l.c; ctx.fillText(l.t,rx+rw/2,cy); cy+=fs*1.35;
+      }
+      ctx.restore();
+    }
+  }
+
+  ctx.strokeStyle='#8a8070'; ctx.lineWidth=2; ctx.strokeRect(1,1,cw-2,ch-2);
+  ctx.fillStyle='#7a7060'; ctx.font='9px monospace';
+  ctx.textAlign='left'; ctx.textBaseline='top'; ctx.fillText(`${W}mm`,3,3);
+  ctx.save(); ctx.translate(3,ch-3); ctx.rotate(-Math.PI/2);
+  ctx.textBaseline='bottom'; ctx.fillText(`${H}mm`,0,0); ctx.restore();
+
+  const util=(packer.utilization()*100).toFixed(1);
+  const bc=packer.utilization()>=.75?'#5cc98e':packer.utilization()>=.55?'#e8a23c':'#e05c5c';
+  const bw=Math.min(92,cw-10), bh=20;
+  ctx.fillStyle=bc; ctx.beginPath(); ctx.roundRect(cw-bw-4,ch-bh-4,bw,bh,4); ctx.fill();
+  ctx.fillStyle='#111'; ctx.font='bold 10px sans-serif';
+  ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillText(`${util}% wyk.`,cw-bw/2-4,ch-bh/2-4);
+
+  area.appendChild(canvas);
+}
+
+// ═══════════════════════════════════════════════
+// NAJLEPSZY FORMAT ARKUSZA
+// ═══════════════════════════════════════════════
+let sheetResults=[], sheetSortKey='util';
+
+function setSortSheet(key, btn) {
+  sheetSortKey = key;
+  document.querySelectorAll('#sortBar .sort-chip').forEach(c=>c.classList.remove('active'));
+  btn.classList.add('active');
+  renderSizeList();
+}
+
+function findBestSheet() {
+  const kerf = +document.getElementById('kerf').value;
+  const cW = +document.getElementById('masterW2').value || 1130;
+  const cH = +document.getElementById('masterH').value || 1100;
+
+  sheetResults = STANDARD_SHEETS.map(s => {
+    const W = s.custom ? cW : s.w;
+    const H = s.custom ? cH : s.h;
+    const res = packForSize(W, H, kerf);
+    return {...s, W, H, label: s.custom ? `${cW}×${cH} (własny)` : s.name, ...res};
+  });
+
+  const valid = sheetResults.filter(r => r.sheetList.length > 0);
+  if (valid.length) {
+    const best = valid.reduce((b,r) => r.avgUtil > b.avgUtil ? r : b, valid[0]);
+    sheetResults.forEach(r => r.isBest = (r === best));
+  }
+
+  document.getElementById('sortBarWrap').style.display = 'block';
+  renderSizeList();
+}
+
+function renderSizeList() {
+  const list = document.getElementById('sizeList');
+  list.innerHTML = '';
+
+  const key = sheetSortKey;
+  const sorted = [...sheetResults].sort((a,b) => {
+    if (key==='util')   return b.avgUtil - a.avgUtil;
+    if (key==='waste')  return a.avgUtil - b.avgUtil;
+    if (key==='sheets') return a.sheetList.length - b.sheetList.length;
+    if (key==='area')   return a.W*a.H - b.W*b.H;
+    if (key==='name')   return (a.label||a.name).localeCompare(b.label||b.name);
+    return 0;
+  });
+
+  sorted.forEach((r, rank) => {
+    const util = (r.avgUtil*100).toFixed(1);
+    const waste = (100-r.avgUtil*100).toFixed(1);
+    const uc = r.avgUtil>=.75?'var(--green)':r.avgUtil>=.55?'var(--accent)':'var(--danger)';
+    const isSel = (r.W===lastW && r.H===lastH);
+    const area_m2 = (r.W*r.H/1e6).toFixed(2);
+
+    // Sub-label depends on sort key
+    let subRight = '';
+    if (key==='util'||key==='waste') subRight=`${r.sheetList.length} ark. · ${waste}% odpad`;
+    else if (key==='sheets') subRight=`${util}% wyk. · ${waste}% odpad`;
+    else if (key==='area') subRight=`${area_m2} m² · ${r.sheetList.length} ark.`;
+    else subRight=`${util}% wyk. · ${r.sheetList.length} ark.`;
+
+    const card = document.createElement('div');
+    card.className=`size-card${isSel?' sel':''}${r.isBest?' best':''}`;
+    card.innerHTML=`
+      ${r.isBest?'<span class="sc-badge badge-best">✓ NAJLEPSZY</span>':''}
+      ${isSel&&!r.isBest?'<span class="sc-badge badge-sel">WYBRANY</span>':''}
+      <div class="sc-rank">${rank+1}</div>
+      <div class="sc-left">
+        <div class="sc-name">${r.label||r.name}</div>
+        <div class="sc-dim">${r.W} × ${r.H} mm</div>
+      </div>
+      <div class="sc-right">
+        <div class="sc-util" style="color:${uc}">${util}%</div>
+        <div class="sc-sub">${subRight}</div>
+      </div>`;
+    card.onclick = () => {
+      document.getElementById('masterW2').value = r.W;
+      document.getElementById('masterH').value = r.H;
+      document.getElementById('masterW').value = r.W;
+      lastW=r.W; lastH=r.H;
+      updateHeaderSize();
+      renderSizeList();
+    };
+    list.appendChild(card);
+  });
+}
+
+function hexAlpha(hex,a){
+  return`rgba(${parseInt(hex.slice(1,3),16)},${parseInt(hex.slice(3,5),16)},${parseInt(hex.slice(5,7),16)},${a})`;
+}
+
+// ═══════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════
+buildPartsList();
+buildMb51();
+updateHeaderSize();
+</script>
+</body>
+</html>
