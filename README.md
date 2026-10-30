@@ -25,7 +25,7 @@ An intuitive, lightweight, single-page web application designed for 2D rectangul
 * Toggle the rotation button (⟳) on individual parts to enable or disable 90° rotation during layout generation.
 * Click ▶ Optymalizuj układ cięcia to execute the optimization.
 
-###**2. Layout Tab (📐 Układ)**
+### **2. Layout Tab (📐 Układ)**
 * View generated layout diagrams for each sheet using the top navigation pills.
 * Inspect summary statistics: total sheets used, average utilization %, waste %, and placed parts ratio.
 * Hover or view part dimensions, rotation indicators (↺), and SAP reference codes drawn directly on the canvas preview.
